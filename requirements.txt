@@ -1,0 +1,12 @@
+pandas
+python-dotenv
+scikit-learn
+beautifulsoup4
+requests
+playwright
+
+# LLM provider SDKs
+openai
+anthropic
+google-generativeai
+groq
