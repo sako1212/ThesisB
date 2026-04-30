@@ -4,6 +4,7 @@ scikit-learn
 beautifulsoup4
 requests
 playwright
+streamlit
 
 # LLM provider SDKs
 openai
