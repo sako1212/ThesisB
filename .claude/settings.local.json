@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile src/models.py src/main.py src/compare_models.py)",
+      "Bash(../venv/Scripts/python.exe compare_models.py)",
+      "Bash(venv/Scripts/python.exe -m pip list)",
+      "Bash(venv/Scripts/python.exe -m pip install google-generativeai groq)",
+      "Bash(venv/Scripts/python.exe -c \"import pandas as pd; df = pd.read_csv\\('outputs/comparison_results.csv'\\); print\\(df[df['predicted_label']=='error'].groupby\\('model'\\)['reasoning'].first\\(\\).to_string\\(\\)\\)\")",
+      "Bash(venv/Scripts/python.exe -c ' *)",
+      "Bash(../venv/Scripts/python.exe -c ' *)",
+      "Bash(tasklist)",
+      "PowerShell(Get-Process *)"
+    ]
+  }
+}

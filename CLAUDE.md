@@ -59,7 +59,6 @@ Both stages call the same LLM and expect JSON responses with `label`, `confidenc
 | `src/compare_models.py` | Instantiates all models with valid API keys and runs comparison |
 | `src/evaluator.py` | Reads output CSVs and computes accuracy, precision, recall, F1, false positive rate |
 | `src/preprocessor.py` | `clean_text()`: lowercases, masks URLs as `[URL]`, strips special chars, normalizes whitespace |
-| `src/llm_detector.py` | Legacy single-model detector (OpenAI only); superseded by `models.py` |
 
 ### Data Flow
 
@@ -80,7 +79,7 @@ Output CSV adds: `cleaned_text`, `predicted_label`, `detection_confidence`, `det
 | Name | Provider | API Key |
 |------|----------|---------|
 | GPT-4o-mini | OpenAI | `OPENAI_API_KEY` |
-| Gemini 1.5 Flash | Google | `GEMINI_API_KEY` |
+| Gemini 2.5 Flash | Google | `GEMINI_API_KEY` |
 | Claude Haiku 4.5 | Anthropic | `ANTHROPIC_API_KEY` |
 | DeepSeek Chat | DeepSeek | `DEEPSEEK_API_KEY` |
 | Llama 3.1 8B Instant | Groq | `GROQ_API_KEY` |

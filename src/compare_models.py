@@ -134,19 +134,33 @@ def main():
             ad_id = row["ad_id"]
             print(f"  ad {ad_id}...", end=" ", flush=True)
 
-            result = detector.detect(row["cleaned_text"])
-            label  = normalise_label(result.get("label", "error"))
+            detection = detector.detect(row["cleaned_text"])
+            label = normalise_label(detection.get("label", "error"))
+            score = detection.get("evaluationScore", 0.0)
+
+            if detection.get("isScamFlagged") and detection["label"] != "error":
+                time.sleep(API_DELAY)
+                classification = detector.classify(row["cleaned_text"])
+            else:
+                classification = {
+                    "scamCategory": "N/A",
+                    "classificationScore": 0.0,
+                    "explanationTrace": "Not classified - ad was not flagged as scam.",
+                }
 
             raw_rows.append({
-                "model":          detector.name,
-                "ad_id":          ad_id,
-                "true_label":     row["true_label"],
-                "true_category":  row.get("true_category", "N/A"),
-                "predicted_label": label,
-                "confidence":     result.get("confidence", 0.0),
-                "reasoning":      result.get("reasoning", ""),
+                "model":            detector.name,
+                "ad_id":            ad_id,
+                "true_label":       row["true_label"],
+                "true_category":    row.get("true_category", "N/A"),
+                "predicted_label":  label,
+                "confidence":       score,
+                "reasoning":        detection.get("reasoningSummary", ""),
+                "predicted_category":       classification["scamCategory"],
+                "classification_confidence": classification["classificationScore"],
+                "classification_reasoning":  classification["explanationTrace"],
             })
-            print(f"{label} ({result.get('confidence', 0.0):.2f})")
+            print(f"{label} ({score:.2f}) -> {classification['scamCategory']}")
             time.sleep(API_DELAY)
 
         print()
