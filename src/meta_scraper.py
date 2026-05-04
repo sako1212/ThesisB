@@ -1,9 +1,16 @@
 """
 meta_scraper.py — Scrapes public ads from the Facebook Ad Library using Playwright.
 
-Key finding: ad body text lands in classless <span> leaf nodes; all UI / metadata
-text has hashed CSS class names. Selecting spans where className == "" gives clean
-ad copy with no extra filtering needed beyond a minimum length check.
+Extracts per-ad structured data by anchoring on the "Library ID:" text that
+appears in every card. Walking 7 levels up from that text node lands on the
+card root (verified empirically — see inspect_dom.py).
+
+Returns per ad:
+    library_id   - Meta's stable ad identifier
+    ad_url       - direct URL to the individual ad's library page
+    ad_text      - body copy of the ad
+    image_urls   - all <img> sources inside the card (with width/height)
+    search_url   - the search URL the ad was discovered through
 """
 
 import re
@@ -13,14 +20,27 @@ _UI_STRINGS = re.compile(
     r"^(see more|see less|see summary details|sponsored|learn more|shop now|"
     r"sign up|contact us|get offer|apply now|watch more|book now|donate now|"
     r"send message|follow|like|share|comment|about this ad|"
-    r"this ad is not active|started running|active since|"
+    r"this ad is not active|started running|active since|library id|"
     r"all results|no results|filters|sort by|reset).*",
     re.IGNORECASE | re.DOTALL,
 )
 
+# Min image side length to keep — drops page-logo thumbnails (typically <60px)
+_MIN_IMAGE_DIM = 100
+
 
 def _is_ad_text(text: str) -> bool:
     return len(text) >= 30 and not _UI_STRINGS.match(text)
+
+
+def _is_english(text: str) -> bool:
+    """Best-effort English check using langdetect; falls back to True on error."""
+    try:
+        from langdetect import detect, DetectorFactory
+        DetectorFactory.seed = 0
+        return detect(text[:600]) == "en"
+    except Exception:
+        return True  # don't drop ads when detector fails
 
 
 def scrape_ad_library(
@@ -28,10 +48,20 @@ def scrape_ad_library(
     country: str = "AU",
     limit: int = 20,
     headless: bool = True,
+    max_scrolls: int = 25,
+    english_only: bool = False,
+    dedup_by_text: bool = False,
 ) -> list[dict]:
     """
     Scrape public ads from the Facebook Ad Library.
-    Returns list of dicts: {"ad_text": str, "source_url": str}
+
+    english_only      drop ads whose body text isn't detected as English
+    dedup_by_text     drop ads whose body text already appeared in this run
+                      (Meta runs the same creative under many Library IDs)
+
+    Returns list of dicts with keys: library_id, ad_url, ad_text, image_urls,
+    search_url. The legacy `source_url` key is also set (= search_url) so
+    existing callers (app.py) keep working.
     """
     from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
@@ -94,33 +124,132 @@ def scrape_ad_library(
                 except Exception:
                     pass
 
+        def _count_ids() -> int:
+            return page.evaluate(
+                r"() => (document.body.innerText.match(/Library ID:?\s*\d+/g) || []).length"
+            )
+
         _expand_see_more()
 
-        # Scroll to lazy-load more ads
-        for _ in range(6):
-            page.evaluate("window.scrollBy(0, 1200)")
+        # Scroll-until-stable: stop when ad count plateaus or we have enough
+        prev = -1
+        stable = 0
+        for i in range(max_scrolls):
+            page.evaluate("window.scrollBy(0, 1500)")
             page.wait_for_timeout(1300)
             _expand_see_more()
+            cur = _count_ids()
+            if cur >= limit + 5:  # small buffer in case some cards fail to extract
+                break
+            if cur == prev:
+                stable += 1
+                if stable >= 3:
+                    break
+            else:
+                stable = 0
+            prev = cur
 
-        # ── Extract classless <span> leaf nodes (ad body text) ───────────────
-        texts: list[str] = page.evaluate(
-            """() =>
-                Array.from(document.querySelectorAll('span'))
-                    .filter(el => el.children.length === 0
-                                  && el.className.trim() === ''
-                                  && el.textContent.trim().length >= 30)
-                    .map(el => el.textContent.trim())
-            """
+        # Final pass: expand all "See More" so we get full body text
+        _expand_see_more()
+        page.wait_for_timeout(800)
+
+        # ── Per-card extraction ─────────────────────────────────────────────
+        # Anchor on text nodes containing "Library ID", walk up 7 levels to
+        # the card root, then collect structured fields per card.
+        cards = page.evaluate(
+            r"""() => {
+                const re = /Library ID:?\s*(\d+)/;
+                const allEls = Array.from(document.querySelectorAll('*'));
+                // Leaf text nodes that mention Library ID
+                const idEls = allEls.filter(el =>
+                    el.children.length === 0
+                    && re.test(el.textContent || '')
+                );
+
+                const seen = new Set();
+                const out = [];
+
+                for (const idEl of idEls) {
+                    // Walk up exactly 7 levels to land on the card root
+                    let card = idEl;
+                    for (let i = 0; i < 7 && card.parentElement; i++) {
+                        card = card.parentElement;
+                    }
+                    if (seen.has(card)) continue;
+                    seen.add(card);
+
+                    const m = (idEl.textContent || '').match(re);
+                    const libraryId = m ? m[1] : null;
+
+                    // Body text: classless span leaves of length >= 30,
+                    // joined and de-duped within this card
+                    const bodySpans = Array.from(card.querySelectorAll('span'))
+                        .filter(s => s.children.length === 0
+                                     && s.className.trim() === ''
+                                     && s.textContent.trim().length >= 30);
+                    const seenText = new Set();
+                    const bodyParts = [];
+                    for (const s of bodySpans) {
+                        const t = s.textContent.trim();
+                        if (!seenText.has(t)) {
+                            seenText.add(t);
+                            bodyParts.push(t);
+                        }
+                    }
+                    const adText = bodyParts.join('\n');
+
+                    const imgs = Array.from(card.querySelectorAll('img'))
+                        .map(i => ({
+                            src: i.src,
+                            width: i.naturalWidth || i.width || 0,
+                            height: i.naturalHeight || i.height || 0,
+                        }))
+                        .filter(o => o.src && (o.src.includes('scontent') || o.src.includes('fbcdn')));
+
+                    out.push({
+                        library_id: libraryId,
+                        ad_text: adText,
+                        image_urls: imgs,
+                    });
+                }
+                return out;
+            }"""
         )
 
-        seen: set[str] = set()
         results: list[dict] = []
-        for text in texts:
-            if _is_ad_text(text) and text not in seen:
-                seen.add(text)
-                results.append({"ad_text": text, "source_url": search_url})
-                if len(results) >= limit:
-                    break
+        seen_text: set[str] = set()
+        for c in cards:
+            text = (c.get("ad_text") or "").strip()
+            if not _is_ad_text(text):
+                continue
+            if dedup_by_text and text in seen_text:
+                continue
+            if english_only and not _is_english(text):
+                continue
+
+            # Drop tiny page-logo thumbnails; keep ad creatives
+            imgs = [
+                img for img in (c.get("image_urls") or [])
+                if (img.get("width") or 0) >= _MIN_IMAGE_DIM
+                and (img.get("height") or 0) >= _MIN_IMAGE_DIM
+            ]
+
+            lib_id = c.get("library_id")
+            ad_url = (
+                f"https://www.facebook.com/ads/library/?id={lib_id}"
+                if lib_id else None
+            )
+            results.append({
+                "library_id":  lib_id,
+                "ad_url":      ad_url,
+                "ad_text":     text,
+                "image_urls":  imgs,
+                "search_url":  search_url,
+                "source_url":  search_url,  # legacy field for app.py compatibility
+            })
+            seen_text.add(text)
+            if len(results) >= limit:
+                break
 
         browser.close()
 

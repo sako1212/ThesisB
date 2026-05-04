@@ -308,33 +308,6 @@ class DeepSeekDetector(BaseDetector):
 
 
 # ---------------------------------------------------------------------------
-# 5. Groq - Llama 3.1 8B Instant
-# ---------------------------------------------------------------------------
-
-class GroqDetector(BaseDetector):
-    name = "Llama 3.1 (Groq)"
-
-    def __init__(self):
-        from groq import Groq
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise EnvironmentError("GROQ_API_KEY not set in .env")
-        self.client = Groq(api_key=api_key)
-
-    def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
-        response = self.client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0,
-            max_tokens=2048,
-        )
-        return response.choices[0].message.content
-
-
-# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
@@ -343,7 +316,6 @@ ALL_DETECTORS = [
     GeminiDetector,
     ClaudeDetector,
     DeepSeekDetector,
-    GroqDetector,
 ]
 
 

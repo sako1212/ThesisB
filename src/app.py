@@ -7,7 +7,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 from preprocessor import clean_text
-from models import GPTDetector, GeminiDetector, ClaudeDetector, DeepSeekDetector, GroqDetector
+from models import GPTDetector, GeminiDetector, ClaudeDetector, DeepSeekDetector
 from scraper import scrape_url, extract_text_from_image_bytes, fetch_image_from_url, is_image_url
 from meta_scraper import scrape_ad_library
 
@@ -18,7 +18,6 @@ DETECTORS = {
     "Gemini 1.5 Flash": GeminiDetector,
     "Claude Haiku": ClaudeDetector,
     "DeepSeek Chat": DeepSeekDetector,
-    "Llama 3.1 (Groq)": GroqDetector,
 }
 
 COUNTRIES = {

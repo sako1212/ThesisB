@@ -8,9 +8,11 @@ classification metrics, and saves:
 
 Usage:
     cd src
-    python compare_models.py
+    python compare_models.py                       # uses outputs/dataset_labelled.csv
+    python compare_models.py --input ../data/sample_ads.csv
 """
 
+import argparse
 import os
 import sys
 import time
@@ -33,9 +35,9 @@ from models import load_detectors
 # Paths
 # ---------------------------------------------------------------------------
 
-INPUT_FILE  = "../data/sample_ads.csv"
-OUTPUT_RAW  = "../outputs/comparison_results.csv"
-OUTPUT_TABLE = "../outputs/comparison_table.csv"
+DEFAULT_INPUT = "../outputs/dataset_labelled.csv"
+OUTPUT_RAW    = "../outputs/comparison_results.csv"
+OUTPUT_TABLE  = "../outputs/comparison_table.csv"
 
 # Pause between API calls to stay within rate limits (seconds)
 API_DELAY = 1.0
@@ -102,15 +104,50 @@ def compute_metrics(y_true: list, y_pred: list) -> dict:
 # ---------------------------------------------------------------------------
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--input", default=DEFAULT_INPUT,
+        help=f"Input CSV (default: {DEFAULT_INPUT})",
+    )
+    parser.add_argument(
+        "--all-rows", action="store_true",
+        help="Process every row, even unlabelled ones (default: skip rows with no true_label)",
+    )
+    args = parser.parse_args()
+
     os.makedirs("../outputs", exist_ok=True)
 
     # --- Load dataset ---
-    if not os.path.exists(INPUT_FILE):
-        print(f"ERROR: {INPUT_FILE} not found.")
+    if not os.path.exists(args.input):
+        print(f"ERROR: {args.input} not found.")
+        if args.input == DEFAULT_INPUT:
+            print("  Run build_dataset.py and label_dataset.py first, "
+                  "or pass --input <path> to use a different CSV.")
         return
 
-    df = pd.read_csv(INPUT_FILE)
-    print(f"\nLoaded {len(df)} ads from {INPUT_FILE}")
+    df = pd.read_csv(args.input)
+    print(f"\nLoaded {len(df)} rows from {args.input}")
+
+    # Filter to labelled rows unless --all-rows is set
+    if "true_label" in df.columns and not args.all_rows:
+        before = len(df)
+        df = df[df["true_label"].notna() & (df["true_label"].astype(str).str.strip() != "")].reset_index(drop=True)
+        if len(df) < before:
+            print(f"Filtered to {len(df)} labelled rows ({before - len(df)} unlabelled skipped). "
+                  f"Pass --all-rows to include them.")
+
+    if len(df) == 0:
+        print("No rows to process. Label some ads first with label_dataset.py.")
+        return
+
+    # Ensure ad_id exists (label_dataset.py adds it; older sample_ads.csv has it natively)
+    if "ad_id" not in df.columns and "library_id" in df.columns:
+        df["ad_id"] = df["library_id"]
+    # Ensure label columns exist so the per-ad row writer doesn't KeyError on
+    # an unlabelled dataset (--all-rows on outputs/dataset.csv)
+    for col in ("true_label", "true_category"):
+        if col not in df.columns:
+            df[col] = ""
 
     # Preprocess all ad texts once
     df["cleaned_text"] = df["ad_text"].apply(clean_text)

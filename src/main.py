@@ -1,23 +1,48 @@
+import argparse
 import os
 import pandas as pd
 from preprocessor import clean_text
 from models import GPTDetector
 
-INPUT_FILE = "../data/sample_ads.csv"
+DEFAULT_INPUT = "../outputs/dataset_labelled.csv"
 OUTPUT_FILE = "../outputs/results.csv"
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", default=DEFAULT_INPUT,
+                        help=f"Input CSV (default: {DEFAULT_INPUT})")
+    parser.add_argument("--all-rows", action="store_true",
+                        help="Process every row (default: skip unlabelled rows)")
+    args = parser.parse_args()
+
     print("Starting AiDetective pipeline...")
 
-    if not os.path.exists(INPUT_FILE):
-        print(f"ERROR: Input file not found: {INPUT_FILE}")
+    if not os.path.exists(args.input):
+        print(f"ERROR: Input file not found: {args.input}")
+        if args.input == DEFAULT_INPUT:
+            print("  Run build_dataset.py and label_dataset.py first, "
+                  "or pass --input <path>.")
         return
 
     os.makedirs("../outputs", exist_ok=True)
 
-    df = pd.read_csv(INPUT_FILE)
-    print(f"Loaded {len(df)} ads from {INPUT_FILE}")
+    df = pd.read_csv(args.input)
+    print(f"Loaded {len(df)} rows from {args.input}")
+
+    if "true_label" in df.columns and not args.all_rows:
+        before = len(df)
+        df = df[df["true_label"].notna() & (df["true_label"].astype(str).str.strip() != "")].reset_index(drop=True)
+        if len(df) < before:
+            print(f"Filtered to {len(df)} labelled rows ({before - len(df)} unlabelled skipped). "
+                  f"Pass --all-rows to include them.")
+
+    if len(df) == 0:
+        print("No rows to process. Label some ads first with label_dataset.py.")
+        return
+
+    if "ad_id" not in df.columns and "library_id" in df.columns:
+        df["ad_id"] = df["library_id"]
 
     detector = GPTDetector()
     results = []
