@@ -16,7 +16,6 @@ IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
 
 
 def scrape_url(url: str, timeout: int = 10) -> str:
-    """Fetch a URL and return visible text content (max 4000 chars)."""
     resp = requests.get(url, headers=HEADERS, timeout=timeout)
     resp.raise_for_status()
 
@@ -30,12 +29,11 @@ def scrape_url(url: str, timeout: int = 10) -> str:
 
 
 def extract_text_from_image_bytes(image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
-    """Use GPT-4o-mini vision to extract all text from an ad image."""
     from openai import OpenAI
 
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise EnvironmentError("OPENAI_API_KEY not set — needed for image analysis")
+        raise EnvironmentError("OPENAI_API_KEY not set - needed for image analysis")
 
     client = OpenAI(api_key=api_key)
     b64 = base64.b64encode(image_bytes).decode()
@@ -67,7 +65,6 @@ def extract_text_from_image_bytes(image_bytes: bytes, mime_type: str = "image/jp
 
 
 def fetch_image_from_url(url: str) -> tuple[bytes, str]:
-    """Download an image URL and return (bytes, mime_type)."""
     resp = requests.get(url, headers=HEADERS, timeout=10)
     resp.raise_for_status()
     mime = resp.headers.get("Content-Type", "image/jpeg").split(";")[0]

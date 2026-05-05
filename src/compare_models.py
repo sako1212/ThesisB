@@ -1,17 +1,3 @@
-"""
-compare_models.py — Multi-model scam detection comparison for AiDetective thesis.
-
-Runs every configured LLM against the labelled dataset, computes per-model
-classification metrics, and saves:
-  outputs/comparison_results.csv  — raw per-ad predictions from all models
-  outputs/comparison_table.csv    — summary metrics table (thesis-ready)
-
-Usage:
-    cd src
-    python compare_models.py                       # uses outputs/dataset_labelled.csv
-    python compare_models.py --input ../data/sample_ads.csv
-"""
-
 import argparse
 import os
 import sys
@@ -25,30 +11,19 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 
-# Allow running from the src/ directory
 sys.path.insert(0, os.path.dirname(__file__))
 
 from preprocessor import clean_text
 from models import load_detectors
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
-
 DEFAULT_INPUT = "../outputs/dataset_labelled.csv"
 OUTPUT_RAW    = "../outputs/comparison_results.csv"
 OUTPUT_TABLE  = "../outputs/comparison_table.csv"
 
-# Pause between API calls to stay within rate limits (seconds)
 API_DELAY = 1.0
 
 
-# ---------------------------------------------------------------------------
-# Normalise label  — map model output to canonical set
-# ---------------------------------------------------------------------------
-
 def normalise_label(raw: str) -> str:
-    """Collapse model output to 'scam', 'suspicious', or 'legitimate'."""
     raw = str(raw).strip().lower()
     if "scam" in raw:
         return "scam"
@@ -59,17 +34,7 @@ def normalise_label(raw: str) -> str:
     return "error"
 
 
-# ---------------------------------------------------------------------------
-# Metrics helper
-# ---------------------------------------------------------------------------
-
 def compute_metrics(y_true: list, y_pred: list) -> dict:
-    """
-    Binary metrics treating 'scam' as the positive class.
-    'suspicious' predictions are counted as 'scam' for recall purposes
-    (conservative: flag rather than miss).
-    """
-    # Collapse suspicious → scam for binary evaluation
     def binarise(labels):
         return ["scam" if l in ("scam", "suspicious") else "legitimate" for l in labels]
 
@@ -99,10 +64,6 @@ def compute_metrics(y_true: list, y_pred: list) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -117,7 +78,6 @@ def main():
 
     os.makedirs("../outputs", exist_ok=True)
 
-    # --- Load dataset ---
     if not os.path.exists(args.input):
         print(f"ERROR: {args.input} not found.")
         if args.input == DEFAULT_INPUT:
@@ -128,7 +88,6 @@ def main():
     df = pd.read_csv(args.input)
     print(f"\nLoaded {len(df)} rows from {args.input}")
 
-    # Filter to labelled rows unless --all-rows is set
     if "true_label" in df.columns and not args.all_rows:
         before = len(df)
         df = df[df["true_label"].notna() & (df["true_label"].astype(str).str.strip() != "")].reset_index(drop=True)
@@ -140,19 +99,14 @@ def main():
         print("No rows to process. Label some ads first with label_dataset.py.")
         return
 
-    # Ensure ad_id exists (label_dataset.py adds it; older sample_ads.csv has it natively)
     if "ad_id" not in df.columns and "library_id" in df.columns:
         df["ad_id"] = df["library_id"]
-    # Ensure label columns exist so the per-ad row writer doesn't KeyError on
-    # an unlabelled dataset (--all-rows on outputs/dataset.csv)
     for col in ("true_label", "true_category"):
         if col not in df.columns:
             df[col] = ""
 
-    # Preprocess all ad texts once
     df["cleaned_text"] = df["ad_text"].apply(clean_text)
 
-    # --- Load model detectors ---
     print("\nInitialising models (skipping any with missing API keys):")
     detectors = load_detectors(skip_missing=True)
 
@@ -162,7 +116,6 @@ def main():
 
     print(f"\nRunning {len(detectors)} model(s) on {len(df)} ads...\n")
 
-    # --- Run each model ---
     raw_rows = []
 
     for detector in detectors:
@@ -202,12 +155,10 @@ def main():
 
         print()
 
-    # --- Save raw results ---
     raw_df = pd.DataFrame(raw_rows)
     raw_df.to_csv(OUTPUT_RAW, index=False)
     print(f"Raw results saved to {OUTPUT_RAW}")
 
-    # --- Compute per-model metrics ---
     summary_rows = []
     for detector in detectors:
         model_df = raw_df[raw_df["model"] == detector.name]
@@ -223,12 +174,10 @@ def main():
 
     summary_df = pd.DataFrame(summary_rows)
 
-    # Reorder columns for the thesis table
     cols = ["model", "n_ads", "accuracy", "precision", "recall", "f1", "fpr", "avg_confidence", "errors"]
     summary_df = summary_df[cols]
     summary_df.to_csv(OUTPUT_TABLE, index=False)
 
-    # --- Print comparison table ---
     print("\n" + "=" * 80)
     print("MULTI-MODEL SCAM DETECTION COMPARISON TABLE")
     print("=" * 80)

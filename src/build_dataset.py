@@ -1,19 +1,3 @@
-"""
-build_dataset.py — Scrape the Meta Ad Library across many search terms and
-countries to build a deduplicated thesis dataset.
-
-Strategy
-    - Run ~25 scam-relevant search terms across AU and US
-    - Each search drops Polish/Spanish/etc ads (english_only)
-    - Each search dedupes within itself by ad_text (dedup_by_text)
-    - Globally dedupe across the whole run by library_id AND ad_text
-    - Save incrementally after every search so a crash never loses progress
-    - Stop early once TARGET_UNIQUE unique ads have been collected
-
-Output
-    outputs/dataset.csv  - one row per unique ad
-"""
-
 import json
 import os
 import sys
@@ -25,12 +9,9 @@ from meta_scraper import scrape_ad_library
 
 OUTPUT          = "../outputs/dataset.csv"
 TARGET_UNIQUE   = 200
-PER_SEARCH_LIMIT = 25         # raw rows requested per (term, country)
-PER_SEARCH_MAX_SCROLLS = 30   # generous; scroll-until-stable will short-circuit
+PER_SEARCH_LIMIT = 25
+PER_SEARCH_MAX_SCROLLS = 30
 
-# Categories chosen to span the 6 scam types in the thesis classifier
-# (phishing / investment / impersonation / health / giveaway / other),
-# plus a few neutral/legit-leaning queries for the negative class.
 SEARCH_TERMS = [
     # phishing / impersonation
     "account verification",
@@ -67,14 +48,12 @@ COUNTRIES = ["AU", "US"]
 
 
 def _safe(s: str, n: int = 80) -> str:
-    """Trim + ASCII-escape a string for Windows console printing."""
     s = (s or "").replace("\n", " ")[:n]
     return s.encode("ascii", "replace").decode("ascii")
 
 
 def _save(rows: list[dict]):
     df = pd.DataFrame(rows)
-    # image_urls is a list-of-dicts; serialise to JSON so CSV survives reload
     if "image_urls" in df.columns:
         df["image_urls"] = df["image_urls"].apply(json.dumps)
     df.to_csv(OUTPUT, index=False)
@@ -131,7 +110,6 @@ def main():
         kept_pct = (added / max(len(ads), 1)) * 100
         print(f"   scraped {len(ads)}, added {added} unique ({kept_pct:.0f}% new)")
 
-        # Persist after every search so crashes don't lose progress
         _save(rows)
 
     elapsed = time.time() - t0

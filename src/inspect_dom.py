@@ -1,9 +1,3 @@
-"""
-inspect_dom.py — One-off probe to confirm the ad card structure on the
-Facebook Ad Library page. Prints structural hints so we can build a robust
-selector.
-"""
-
 from urllib.parse import quote
 from playwright.sync_api import sync_playwright
 
@@ -19,7 +13,6 @@ with sync_playwright() as pw:
     page.goto(URL, wait_until="domcontentloaded", timeout=30000)
     page.wait_for_timeout(5000)
 
-    # Dismiss cookie
     for sel in [
         '[data-cookiebanner="accept_only_essential_button"]',
         'button:has-text("Only allow essential cookies")',
@@ -40,14 +33,11 @@ with sync_playwright() as pw:
     info = page.evaluate(
         r"""() => {
             const out = {};
-            // 1. Articles?
             out.role_article = document.querySelectorAll('div[role="article"]').length;
-            // 2. How many "Library ID" mentions?
             const libraryIdRe = /Library ID:?\s*(\d+)/g;
             const matches = [...document.body.innerText.matchAll(libraryIdRe)];
             out.library_id_count = matches.length;
             out.library_id_first5 = matches.slice(0, 5).map(m => m[1]);
-            // 3. Find ancestor of a Library ID text node, walk up levels
             const allEls = Array.from(document.querySelectorAll('*'));
             const idEl = allEls.find(el => el.children.length === 0
                                             && /Library ID/i.test(el.textContent || ''));
@@ -68,7 +58,6 @@ with sync_playwright() as pw:
                 }
                 out.ancestors = ancestors;
             }
-            // 4. Image hints
             out.imgs_total = document.querySelectorAll('img').length;
             out.imgs_scontent = [...document.querySelectorAll('img')]
                 .map(i => i.src)

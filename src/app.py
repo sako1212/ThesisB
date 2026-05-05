@@ -73,7 +73,6 @@ with col1:
 
 tab_text, tab_url, tab_image, tab_scrape = st.tabs(["Text", "URL", "Image", "Scrape"])
 
-# ── Tab 1: plain text ────────────────────────────────────────────────────────
 with tab_text:
     ad_text = st.text_area(
         "Ad Text",
@@ -88,7 +87,6 @@ with tab_text:
             with st.spinner(f"Analyzing with {model_name}..."):
                 run_detector(model_name, ad_text)
 
-# ── Tab 2: URL ───────────────────────────────────────────────────────────────
 with tab_url:
     st.caption(
         "Paste any public webpage URL. "
@@ -117,7 +115,6 @@ with tab_url:
                 except Exception as e:
                     st.error(f"Could not fetch URL: {e}")
 
-# ── Tab 3: image upload ──────────────────────────────────────────────────────
 with tab_image:
     st.caption("Upload a screenshot or photo of an ad. Text is extracted via GPT-4o-mini vision, then analyzed by the selected model.")
     uploaded = st.file_uploader(
@@ -143,7 +140,6 @@ with tab_image:
             with st.spinner(f"Analyzing with {model_name}..."):
                 run_detector(model_name, extracted)
 
-# ── Tab 4: Meta Ad Library scraper ──────────────────────────────────────────
 with tab_scrape:
     st.caption(
         "Scrapes the public [Facebook Ad Library](https://www.facebook.com/ads/library) "
@@ -215,14 +211,12 @@ with tab_scrape:
 
             df = pd.DataFrame(rows)
 
-            # Color-code labels
             def color_label(val):
                 colors = {"SCAM": "background-color:#f8d7da", "SUSPICIOUS": "background-color:#fff3cd", "LEGITIMATE": "background-color:#d1e7dd"}
                 return colors.get(val, "")
 
             st.dataframe(df.style.map(color_label, subset=["Label"]), use_container_width=True)
 
-            # Save results
             os.makedirs("../outputs", exist_ok=True)
             out_path = "../outputs/scraped_results.csv"
             df.to_csv(out_path, index=False)

@@ -1,17 +1,3 @@
-"""
-models.py — Unified LLM detector wrappers for multi-model scam detection comparison.
-
-Each detector exposes two methods:
-    detect(ad_text)   -> {"label", "isScamFlagged", "evaluationScore", "reasoningSummary"}
-    classify(ad_text) -> {"scamCategory", "classificationScore", "explanationTrace"}
-
-Field names match the Firestore schema in Table 4.4 of the thesis. `isScamFlagged`
-is derived in code from the 3-class `label` (scam/suspicious -> True) so the model
-cannot return inconsistent values for the two fields.
-
-All detectors share the same prompts so cross-model results are directly comparable.
-"""
-
 import os
 import json
 import re
@@ -19,10 +5,6 @@ from abc import ABC, abstractmethod
 from dotenv import load_dotenv
 
 load_dotenv()
-
-# ---------------------------------------------------------------------------
-# Shared prompts
-# ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT_DETECT = (
     "You are an advanced AI content analyst specialising in identifying and "
@@ -118,16 +100,12 @@ VALID_LABELS = {"scam", "suspicious", "legitimate"}
 VALID_CATEGORIES = {"phishing", "investment", "impersonation", "health", "giveaway", "other"}
 
 
-# ---------------------------------------------------------------------------
-# Base class
-# ---------------------------------------------------------------------------
-
 class BaseDetector(ABC):
     name: str = "base"
 
     @abstractmethod
     def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
-        """Send a single chat-style request and return the raw response text."""
+        ...
 
     def detect(self, ad_text: str) -> dict:
         try:
@@ -202,10 +180,6 @@ class BaseDetector(ABC):
         }
 
 
-# ---------------------------------------------------------------------------
-# 1. OpenAI GPT-4o-mini
-# ---------------------------------------------------------------------------
-
 class GPTDetector(BaseDetector):
     name = "GPT-4o-mini"
 
@@ -228,10 +202,6 @@ class GPTDetector(BaseDetector):
         )
         return response.choices[0].message.content
 
-
-# ---------------------------------------------------------------------------
-# 2. Google Gemini 1.5 Flash
-# ---------------------------------------------------------------------------
 
 class GeminiDetector(BaseDetector):
     name = "Gemini 2.5 Flash"
@@ -256,10 +226,6 @@ class GeminiDetector(BaseDetector):
         return response.text
 
 
-# ---------------------------------------------------------------------------
-# 3. Anthropic Claude Haiku
-# ---------------------------------------------------------------------------
-
 class ClaudeDetector(BaseDetector):
     name = "Claude Haiku"
 
@@ -279,10 +245,6 @@ class ClaudeDetector(BaseDetector):
         )
         return response.content[0].text
 
-
-# ---------------------------------------------------------------------------
-# 4. DeepSeek Chat (OpenAI-compatible endpoint)
-# ---------------------------------------------------------------------------
 
 class DeepSeekDetector(BaseDetector):
     name = "DeepSeek Chat"
@@ -307,10 +269,6 @@ class DeepSeekDetector(BaseDetector):
         return response.choices[0].message.content
 
 
-# ---------------------------------------------------------------------------
-# Registry
-# ---------------------------------------------------------------------------
-
 ALL_DETECTORS = [
     GPTDetector,
     GeminiDetector,
@@ -320,10 +278,6 @@ ALL_DETECTORS = [
 
 
 def load_detectors(skip_missing: bool = True) -> list:
-    """
-    Instantiate all detectors. If skip_missing=True, detectors whose API key
-    is not set are silently skipped instead of raising an error.
-    """
     detectors = []
     for cls in ALL_DETECTORS:
         try:

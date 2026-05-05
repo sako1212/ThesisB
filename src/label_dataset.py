@@ -1,25 +1,3 @@
-"""
-label_dataset.py — Hand-label the scraped dataset for thesis ground truth.
-
-Reads:  outputs/dataset.csv
-Writes: outputs/dataset_labelled.csv  (resumable; saved after every label)
-
-Output adds columns:
-    ad_id          - copy of library_id, for compatibility with main.py / compare_models.py
-    true_label     - scam | suspicious | legitimate
-    true_category  - phishing | investment | impersonation | health | giveaway | other | N/A
-    notes          - optional free-text
-
-Keys:
-    s  scam       l  legitimate     k  skip (revisit later)
-    ?  suspicious b  back (re-label previous)    o  open ad URL in browser
-    q  save & quit                  ?  show stats
-
-Category keys (only asked for scam/suspicious):
-    p  phishing   i  investment   m  impersonation
-    h  health     g  giveaway     o  other
-"""
-
 import io
 import os
 import sys
@@ -27,7 +5,6 @@ import textwrap
 import webbrowser
 import pandas as pd
 
-# Print non-ASCII characters without crashing on Windows console
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 INPUT  = "../outputs/dataset.csv"
@@ -59,7 +36,6 @@ def load_state() -> pd.DataFrame:
         df["true_category"] = ""
         df["notes"] = ""
         print(f"Starting fresh from {INPUT}")
-    # Ensure columns exist even if older labelled file is loaded
     for col in ("ad_id", "true_label", "true_category", "notes"):
         if col not in df.columns:
             df[col] = ""
@@ -69,7 +45,6 @@ def load_state() -> pd.DataFrame:
 
 
 def save(df: pd.DataFrame):
-    # Atomic-ish: write to .tmp then rename
     tmp = OUTPUT + ".tmp"
     df.to_csv(tmp, index=False)
     os.replace(tmp, OUTPUT)
@@ -103,7 +78,6 @@ def prompt(msg: str) -> str:
 
 
 def label_one(row, df, idx) -> str:
-    """Returns 'next', 'back', or 'quit'."""
     while True:
         choice = prompt("  [s]cam  [?]suspicious  [l]egitimate  [k]skip  [b]ack  [o]pen-url  [?]stats  [q]uit  > ")
 
@@ -163,14 +137,13 @@ def main():
     df = load_state()
     show_stats(df)
 
-    # Order: label rows that don't have a true_label yet
     pending = df.index[df["true_label"] == ""].tolist()
     if not pending:
         print("All ads already labelled. Nothing to do.")
         return
 
     print(f"\n{len(pending)} ads to label. Ctrl+C or 'q' to save and exit.\n")
-    history: list[int] = []  # indexes labelled in this session, for 'back'
+    history: list[int] = []
 
     cursor = 0
     while cursor < len(pending):
@@ -186,15 +159,12 @@ def main():
                 print("  no previous label to go back to")
                 continue
             prev_idx = history.pop()
-            # Clear the previous label so the user re-labels it
             df.at[prev_idx, "true_label"] = ""
             df.at[prev_idx, "true_category"] = ""
             df.at[prev_idx, "notes"] = ""
             save(df)
-            # Insert prev_idx in front of cursor so the next loop shows it
             pending.insert(cursor, prev_idx)
             continue
-        # action == "next"
         history.append(idx)
         cursor += 1
 

@@ -5,9 +5,9 @@ beautifulsoup4
 requests
 playwright
 streamlit
+langdetect
 
 # LLM provider SDKs
 openai
 anthropic
 google-generativeai
-groq

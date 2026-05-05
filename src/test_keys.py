@@ -1,8 +1,3 @@
-"""
-test_keys.py — Probe each provider with a minimal request to verify API keys work.
-Plus a deeper end-to-end test for DeepSeek (full detect+classify on a real ad).
-"""
-
 import os
 import json
 from dotenv import load_dotenv
@@ -43,7 +38,6 @@ def test_gemini():
         import google.generativeai as genai
         genai.configure(api_key=key)
         model = genai.GenerativeModel("gemini-2.5-flash")
-        # Gemini 2.5 spends "thinking" tokens before output, so give it room
         r = model.generate_content("say ok in one word", generation_config={"max_output_tokens": 200})
         report("Gemini 2.5 Flash", True, (r.text or "")[:30])
     except Exception as e:
@@ -85,7 +79,6 @@ def test_deepseek():
 
 
 def test_deepseek_pipeline():
-    """End-to-end: run DeepSeek through the actual detect()+classify() pipeline."""
     print("\n--- DeepSeek end-to-end pipeline test ---")
     try:
         from models import DeepSeekDetector
@@ -94,7 +87,6 @@ def test_deepseek_pipeline():
         report("DeepSeek init", False, f"{type(e).__name__}: {e}")
         return
 
-    # A clearly-scam ad — should be detected as scam, then classified
     ad = "Earn $5,000/week guaranteed - DM me 'START' to join. Limited spots!"
 
     detection = det.detect(ad)
@@ -109,7 +101,7 @@ def test_deepseek_pipeline():
     )
 
     if not detection.get("isScamFlagged"):
-        print("  (skipping classify — ad was not flagged)")
+        print("  (skipping classify - ad was not flagged)")
         return
 
     classification = det.classify(ad)

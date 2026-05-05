@@ -1,16 +1,3 @@
-"""
-evaluator.py — Compute and display metrics from a saved comparison CSV.
-
-Supports both single-model output (outputs/results.csv) and
-multi-model output (outputs/comparison_results.csv).
-
-Usage:
-    cd src
-    python evaluator.py                              # single-model results
-    python evaluator.py --multi                      # multi-model comparison
-    python evaluator.py --multi --model "GPT-4o-mini"  # one model from multi file
-"""
-
 import argparse
 import pandas as pd
 from sklearn.metrics import (
@@ -26,7 +13,6 @@ MULTI_FILE  = "../outputs/comparison_results.csv"
 
 
 def binarise(labels):
-    """Treat 'suspicious' the same as 'scam' for binary evaluation."""
     return ["scam" if l in ("scam", "suspicious") else "legitimate" for l in labels]
 
 
@@ -100,7 +86,6 @@ def run_multi(filter_model: str = None):
             avg_conf=mdf["confidence"].mean(),
         )
 
-    # Summary comparison table
     if not filter_model and len(models) > 1:
         print(f"\n{'='*80}")
         print("SUMMARY COMPARISON TABLE")

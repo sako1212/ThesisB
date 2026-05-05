@@ -1,8 +1,3 @@
-"""
-scrape_test.py — Run the Meta Ad Library scraper on a few scam-relevant
-search terms and save the results for review.
-"""
-
 import os
 import sys
 import time
